@@ -50,15 +50,14 @@ extension ReorderProcessorDelegate {
 // MARK: - ReorderProcessor
 public class ReorderProcessor {
   
+  public var isEnable: Bool = false { didSet { isEnable ? enable() : disable() } }
+  
   /// 是否在移动Section时折叠所有Section的内容
   //public var isFoldSectionWhenMoveSection: Bool = true
   /// 表示移动第一个Row时，移动Section,
   /// 若设置为true，则代理回调中关于移动行时的索引Row都会+1，
   /// 默认为true
-  private var isMoveSectionEnable: Bool = true
-  
-  /// 表示当前是否正在移动Section
-  private var isMovingSection: Bool { return isMoveSectionEnable && sourceIndexPath?.row == 0 }
+  public var isMoveSectionEnable: Bool = true
   
   /// 接收排序事件的代理
   private weak var delegate: ReorderProcessorDelegate!
@@ -89,11 +88,6 @@ public class ReorderProcessor {
 // MARK: - Public
 public extension ReorderProcessor {
   
-  func prepare() {
-    
-    tableView.addGestureRecognizer(longPressGR)
-  }
-  
 }
 
 // MARK: - Action
@@ -115,14 +109,14 @@ private extension ReorderProcessor {
       self.snapshotView = snapshotView
       tableView.addSubview(snapshotView)
       
-      UIView.animate(withDuration: 0.5, animations: {
+      UIView.animate(withDuration: 0.1, animations: {
         
         sourceCell.alpha = 0
         snapshotView.alpha = 1
       })
       
+      /// 若是移动Section，则折叠列表刷新界面
       guard self.isMovingSection == true else { return }
-      
       self.delegate.reorderProcessor(self, willFoldList: true)
       self.reload()
       
@@ -132,16 +126,10 @@ private extension ReorderProcessor {
       snapshotView?.center.y = sender.location(in: tableView).y
       
       /// 获取要交换位置及视图
-      guard let source = self.sourceIndexPath else {
-        print("\(Date()) No Source IndexPath")
-        return }
-      guard let destination = self.destinationIndexPath else {
-        print("\(Date()) No Destination IndexPath")
-        return }
+      guard let source = self.sourceIndexPath else { fatalError("No Source IndexPath") }
+      guard let destination = self.destinationIndexPath else { return }
       /// 过滤相同的索引
-      guard destination != source else {
-        print("\(Date()) Destination And Source are same")
-        return }
+      guard destination != source else { return }
       
       if isMovingSection == true {
         
@@ -168,6 +156,7 @@ private extension ReorderProcessor {
         self.sourceIndexPath = nil
       })
       
+      /// 若是移动Section，则展开列表刷新界面
       guard self.isMovingSection == true else { return }
       self.delegate.reorderProcessor(self, willFoldList: false)
       self.reload()
@@ -179,6 +168,16 @@ private extension ReorderProcessor {
 
 // MARK: - Utility
 private extension ReorderProcessor {
+  
+  func enable() {
+    
+    tableView.addGestureRecognizer(longPressGR)
+  }
+  
+  func disable() {
+    
+    tableView.removeGestureRecognizer(longPressGR)
+  }
   
   func reload() {
     
@@ -210,18 +209,30 @@ private extension ReorderProcessor {
 // MARK: - Move
 private extension ReorderProcessor {
   
+  /// 表示当前是否正在移动Section
+  var isMovingSection: Bool { return isMoveSectionEnable && (sourceIndexPath?.row == 0) }
+  
   var destinationIndexPath: IndexPath? {
+    
+    if sourceIndexPath == nil { return nil }
+    return isMovingSection ? sectionDestinationIndexPath : rowDestinationIndexPath
+  }
+  
+  var sectionDestinationIndexPath: IndexPath? {
+    
+    return tableView.indexPathForRow(at: longPressGR.location(in: tableView))
+  }
+  
+  var rowDestinationIndexPath: IndexPath? {
     
     guard let source = self.sourceIndexPath else { return nil }
     guard let snapshotView = self.snapshotView else { return nil }
     
-    /// 优先使用触控点获取目标索引
+    /// 如果移动Row的模式
+    /// 先根据触控点获取目标索引
     if var destinationIndex = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) {
       
-      /// 如果是可以移动Section的模式，源行为0，则是移动Section，直接返回索引
-      if isMoveSectionEnable == true && source.row == 0 { return destinationIndex }
-      
-      /// 如果是可以移动Section的模式，源行不为0，目标行为0的时候，则在目标行后插入
+      /// 如果是可以移动Section的模式，源行不为0，目标行为0的时候，不执行任何移动
       if isMoveSectionEnable == true && destinationIndex.row == 0 {
         
         destinationIndex.row += 1
@@ -231,52 +242,13 @@ private extension ReorderProcessor {
       return destinationIndex
     }
     
-    return nil
-    
-    // 获取首尾两个索引
+    // 当使用触控点获取不到索引时(移动到Header或者Footer的时候)，使用区域获取索引
     let indexPaths = tableView.indexPathsForRows(in: snapshotView.frame)
-    guard let firstIndexPath = indexPaths?.first else { return nil }
-    guard let lastIndexPath = indexPaths?.last else { return nil }
+    guard var firstIndexPath = indexPaths?.first else { return nil }
+    guard firstIndexPath < source else { return nil }
     
-    /// 移动Section时
-    if isMovingSection == true {
-      
-      return lastIndexPath
-    }
-    
-    /// 当不支持移动Section时移动Row
-    if isMoveSectionEnable == false {
-      
-      return lastIndexPath
-    }
-    
-    /// 支持Section移动时移动Row
-    if firstIndexPath == lastIndexPath {
-      
-    }
-    
-    
-    /// 尾索引在源索引之前
-    if lastIndexPath < source {
-      
-      /// 如果目标索引是Section的最后一个Row，则是追加模式
-      if tableView.numberOfRows(inSection: lastIndexPath.section) == lastIndexPath.row + 1 {
-        
-        return IndexPath(row: lastIndexPath.row + 1, section: lastIndexPath.section)
-      }
-      
-      /// 如果不是则是插入模式
-      return lastIndexPath
-    }
-    
-    /// 尾索引在源索引之后，首索引在源索引之前
-    if firstIndexPath < source {
-      
-      return firstIndexPath
-    }
-    
-    /// 首索引在源索引之后
-    return IndexPath(row: firstIndexPath.row + 1, section: firstIndexPath.section)
+    firstIndexPath.row += 1
+    return firstIndexPath
   }
   
   func moveSection(from source: IndexPath, to destination: IndexPath) {
