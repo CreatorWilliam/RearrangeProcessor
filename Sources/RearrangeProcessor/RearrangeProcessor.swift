@@ -1,5 +1,5 @@
 //
-//  ReorderProcessor.swift
+//  RearrangeProcessor.swift
 //
 //
 //  Created by William Lee on 2019/10/8.
@@ -7,60 +7,59 @@
 
 import UIKit
 
-public protocol ReorderProcessorDelegate: class {
+public protocol RearrangeProcessorDelegate: class {
   
   /// 当需要刷新数据源时进行
   /// - Parameter processor: 排序处理器
   /// - Parameter isFold: 是否折叠列表
-  func reorderProcessor(_ processor: ReorderProcessor, willFoldList isFold: Bool)
+  func rearrangeProcessor(_ processor: RearrangeProcessor, willFoldList isFold: Bool)
   
   /// 要移动Section时进行有回调
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 要移动的Section的索引
-  //func reorderProcessor(_ processor: ReorderProcessor, shouldMoveSectionAt source: IndexPath) -> Bool
+  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveSectionAt source: IndexPath) -> Bool
   
   /// 移动Section时才会回调，会频繁调用
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 移动中Section的起始索引
   /// - Parameter destination: 移动中Section的目标索引
-  func reorderProcessor(_ processor: ReorderProcessor, moveSectionFrom source: IndexPath, to destination: IndexPath)
+  func rearrangeProcessor(_ processor: RearrangeProcessor, moveSectionFrom source: IndexPath, to destination: IndexPath)
   
   /// 要移动Row的时候进行回调
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 要移动行的索引
-  //func reorderProcessor(_ processor: ReorderProcessor, shouldMoveRowAt source: IndexPath) -> Bool
+  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveRowAt source: IndexPath) -> Bool
   
   /// 移动Row的时候进行回调，会频繁的调用
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 移动中Row的起始索引
   /// - Parameter destination: 移动中Row的目标索引
-  func reorderProcessor(_ processor: ReorderProcessor, moveRowFrom source: IndexPath, to destination: IndexPath)
+  func rearrangeProcessor(_ processor: RearrangeProcessor, moveRowFrom source: IndexPath, to destination: IndexPath)
   
 }
 
-// MARK: - ReorderProcessorDelegate Default Implement
-extension ReorderProcessorDelegate {
+// MARK: - RearrangeProcessorDelegate Default Implement
+extension RearrangeProcessorDelegate {
   
-  //func reorderProcessor(_ processor: ReorderProcessor, shouldMoveSectionAt source: IndexPath) -> Bool { return true }
+  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveSectionAt source: IndexPath) -> Bool { return true }
   
-  //func reorderProcessor(_ processor: ReorderProcessor, shouldMoveRowAt source: IndexPath) -> Bool { return true }
+  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveRowAt source: IndexPath) -> Bool { return true }
   
 }
 
-// MARK: - ReorderProcessor
-public class ReorderProcessor {
+// MARK: - RearrangeProcessor
+public class RearrangeProcessor {
   
+  /// 是否可以进行重新排列，默认为false
   public var isEnable: Bool = false { didSet { isEnable ? enable() : disable() } }
   
-  /// 是否在移动Section时折叠所有Section的内容
-  //public var isFoldSectionWhenMoveSection: Bool = true
   /// 表示移动第一个Row时，移动Section,
   /// 若设置为true，则代理回调中关于移动行时的索引Row都会+1，
   /// 默认为true
   public var isMoveSectionEnable: Bool = true
   
   /// 接收排序事件的代理
-  private weak var delegate: ReorderProcessorDelegate!
+  private weak var delegate: RearrangeProcessorDelegate!
   /// 要进行排序的列表视图
   private let tableView: UITableView
   /// 用于触发排序的手势
@@ -76,7 +75,7 @@ public class ReorderProcessor {
   /// 默认的构造方法
   /// - Parameter tableView: 要进行排序的UITableView
   /// - Parameter delegate: 用于接收排序事件的代理
-  public init(_ tableView: UITableView, delegate: ReorderProcessorDelegate) {
+  public init(_ tableView: UITableView, delegate: RearrangeProcessorDelegate) {
     
     self.tableView = tableView
     self.delegate = delegate
@@ -86,12 +85,12 @@ public class ReorderProcessor {
 }
 
 // MARK: - Public
-public extension ReorderProcessor {
+public extension RearrangeProcessor {
   
 }
 
 // MARK: - Action
-private extension ReorderProcessor {
+private extension RearrangeProcessor {
   
   @objc func longPress(_ sender: UILongPressGestureRecognizer) {
     
@@ -117,7 +116,7 @@ private extension ReorderProcessor {
       
       /// 若是移动Section，则折叠列表刷新界面
       guard self.isMovingSection == true else { return }
-      self.delegate.reorderProcessor(self, willFoldList: true)
+      self.delegate.rearrangeProcessor(self, willFoldList: true)
       self.reload()
       
       
@@ -158,7 +157,7 @@ private extension ReorderProcessor {
       
       /// 若是移动Section，则展开列表刷新界面
       guard self.isMovingSection == true else { return }
-      self.delegate.reorderProcessor(self, willFoldList: false)
+      self.delegate.rearrangeProcessor(self, willFoldList: false)
       self.reload()
       
     }
@@ -167,7 +166,7 @@ private extension ReorderProcessor {
 }
 
 // MARK: - Utility
-private extension ReorderProcessor {
+private extension RearrangeProcessor {
   
   func enable() {
     
@@ -207,7 +206,7 @@ private extension ReorderProcessor {
 }
 
 // MARK: - Move
-private extension ReorderProcessor {
+private extension RearrangeProcessor {
   
   /// 表示当前是否正在移动Section
   var isMovingSection: Bool { return isMoveSectionEnable && (sourceIndexPath?.row == 0) }
@@ -253,7 +252,7 @@ private extension ReorderProcessor {
   
   func moveSection(from source: IndexPath, to destination: IndexPath) {
     
-    delegate?.reorderProcessor(self, moveSectionFrom: source, to: destination)
+    delegate?.rearrangeProcessor(self, moveSectionFrom: source, to: destination)
     tableView.moveSection(source.section, toSection: destination.section)
     
     tableView.cellForRow(at: source)?.alpha = 1
@@ -263,7 +262,7 @@ private extension ReorderProcessor {
   
   func moveRow(from source: IndexPath, to destination: IndexPath) {
     
-    delegate.reorderProcessor(self, moveRowFrom: source, to: destination)
+    delegate.rearrangeProcessor(self, moveRowFrom: source, to: destination)
     tableView.moveRow(at: source, to: destination)
     
     tableView.cellForRow(at: source)?.alpha = 1
