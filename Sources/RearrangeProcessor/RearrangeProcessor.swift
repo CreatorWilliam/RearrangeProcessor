@@ -38,15 +38,6 @@ public protocol RearrangeProcessorDelegate: class {
   
 }
 
-// MARK: - RearrangeProcessorDelegate Default Implement
-extension RearrangeProcessorDelegate {
-  
-  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveSectionAt source: IndexPath) -> Bool { return true }
-  
-  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveRowAt source: IndexPath) -> Bool { return true }
-  
-}
-
 // MARK: - RearrangeProcessor
 public class RearrangeProcessor {
   
@@ -97,6 +88,8 @@ private extension RearrangeProcessor {
     switch sender.state {
     case .began:
       
+      sourceIndexPath = nil
+      
       guard let indexPath = tableView.indexPathForRow(at: sender.location(in: tableView)) else { return }
       guard let sourceCell = tableView.cellForRow(at: indexPath) else { return }
       
@@ -122,10 +115,10 @@ private extension RearrangeProcessor {
       
     case .changed:
       
-      snapshotView?.center.y = sender.location(in: tableView).y
+      scrollIfNeed()
       
       /// 获取要交换位置及视图
-      guard let source = self.sourceIndexPath else { fatalError("No Source IndexPath") }
+      guard let source = self.sourceIndexPath else { return }
       guard let destination = self.destinationIndexPath else { return }
       /// 过滤相同的索引
       guard destination != source else { return }
@@ -139,7 +132,7 @@ private extension RearrangeProcessor {
         moveRow(from: source, to: destination)
       }
       
-    default:
+    case .ended:
       
       guard let source = sourceIndexPath else { return }
       
@@ -160,6 +153,7 @@ private extension RearrangeProcessor {
       self.delegate.rearrangeProcessor(self, willFoldList: false)
       self.reload()
       
+    default: break
     }
   }
   
@@ -201,6 +195,44 @@ private extension RearrangeProcessor {
     imageView.layer.shadowOpacity = 0.4
     
     return imageView
+  }
+  
+  func scrollIfNeed() {
+    
+    let visibleCells = tableView.visibleCells
+    guard let snapshotCell = snapshotView else { return }
+    guard let topCellFrame = visibleCells.first?.frame else { return }
+    guard let bottomCellFrame = visibleCells.last?.frame else { return }
+    
+    if topCellFrame.maxY > snapshotCell.frame.minY {
+      
+      tableView.contentOffset.y -= 5
+      snapshotView?.center.y = longPressGR.location(in: tableView).y
+      if tableView.contentOffset.y < 0 {
+        tableView.contentOffset.y = 0
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
+        self.scrollIfNeed()
+      })
+      
+    } else if bottomCellFrame.minY < snapshotCell.frame.maxY {
+      
+      tableView.contentOffset.y += 5
+      snapshotView?.center.y = longPressGR.location(in: tableView).y
+      if tableView.contentOffset.y > (tableView.contentSize.height - tableView.bounds.height) {
+        tableView.contentOffset.y = tableView.contentSize.height - tableView.bounds.height
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
+        self.scrollIfNeed()
+      })
+      
+    } else {
+      
+      snapshotView?.center.y = longPressGR.location(in: tableView).y
+    }
+    
   }
   
 }
@@ -257,7 +289,7 @@ private extension RearrangeProcessor {
     
     tableView.cellForRow(at: source)?.alpha = 1
     tableView.cellForRow(at: destination)?.alpha = 0
-    self.sourceIndexPath = destination
+    sourceIndexPath = destination
   }
   
   func moveRow(from source: IndexPath, to destination: IndexPath) {
@@ -267,7 +299,7 @@ private extension RearrangeProcessor {
     
     tableView.cellForRow(at: source)?.alpha = 1
     tableView.cellForRow(at: destination)?.alpha = 0
-    self.sourceIndexPath = destination
+    sourceIndexPath = destination
   }
   
 }
