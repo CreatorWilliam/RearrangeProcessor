@@ -12,34 +12,34 @@ public protocol RearrangeProcessorDelegate: class {
   /// 当需要刷新数据源时进行
   /// - Parameter processor: 排序处理器
   /// - Parameter isFold: 是否折叠列表
-  func rearrangeProcessor(_ processor: RearrangeProcessor, willFoldList isFold: Bool)
+  func rearrangeProcessor(_ processor: Rearranger, willFoldList isFold: Bool)
   
   /// 要移动Section时进行有回调
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 要移动的Section的索引
-  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveSectionAt source: IndexPath) -> Bool
+  //func rearrangeProcessor(_ processor: Rearranger, shouldMoveSectionAt source: IndexPath) -> Bool
   
   /// 移动Section时才会回调，会频繁调用
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 移动中Section的起始索引
   /// - Parameter destination: 移动中Section的目标索引
-  func rearrangeProcessor(_ processor: RearrangeProcessor, moveSectionFrom source: IndexPath, to destination: IndexPath)
+  func rearrangeProcessor(_ processor: Rearranger, moveSectionFrom source: IndexPath, to destination: IndexPath)
   
   /// 要移动Row的时候进行回调
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 要移动行的索引
-  //func rearrangeProcessor(_ processor: RearrangeProcessor, shouldMoveRowAt source: IndexPath) -> Bool
+  //func rearrangeProcessor(_ processor: Rearranger, shouldMoveRowAt source: IndexPath) -> Bool
   
   /// 移动Row的时候进行回调，会频繁的调用
   /// - Parameter processor: 排序处理器
   /// - Parameter source: 移动中Row的起始索引
   /// - Parameter destination: 移动中Row的目标索引
-  func rearrangeProcessor(_ processor: RearrangeProcessor, moveRowFrom source: IndexPath, to destination: IndexPath)
+  func rearrangeProcessor(_ processor: Rearranger, moveRowFrom source: IndexPath, to destination: IndexPath)
   
 }
 
-// MARK: - RearrangeProcessor
-public class RearrangeProcessor {
+// MARK: - Rearranger
+public class Rearranger {
   
   /// 是否可以进行重新排列，默认为false
   public var isEnable: Bool = false { didSet { isEnable ? enable() : disable() } }
@@ -78,12 +78,12 @@ public class RearrangeProcessor {
 }
 
 // MARK: - Public
-public extension RearrangeProcessor {
+public extension Rearranger {
   
 }
 
 // MARK: - GestureRecognizer
-private extension RearrangeProcessor {
+private extension Rearranger {
   
   @objc func longPress(_ sender: UILongPressGestureRecognizer) {
     
@@ -191,7 +191,7 @@ private extension RearrangeProcessor {
 }
 
 // MARK: - Timer
-private extension RearrangeProcessor {
+private extension Rearranger {
   
   func startTimer() {
     
@@ -270,7 +270,7 @@ private extension RearrangeProcessor {
 }
 
 // MARK: - Utility
-private extension RearrangeProcessor {
+private extension Rearranger {
   
   func enable() {
     
@@ -312,7 +312,7 @@ private extension RearrangeProcessor {
 }
 
 // MARK: - Move
-private extension RearrangeProcessor {
+private extension Rearranger {
   
   /// 表示当前是否正在移动Section
   var isMovingSection: Bool { return isMoveSectionEnable && (sourceIndexPath?.row == 0) }
