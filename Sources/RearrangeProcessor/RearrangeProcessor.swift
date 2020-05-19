@@ -62,6 +62,8 @@ public class RearrangeProcessor {
   /// 记录移动过程中起始的索引
   private var sourceIndexPath: IndexPath?
   
+  private var isScrolling: Bool = false
+  private var scrollTimer: Timer?
   
   /// 默认的构造方法
   /// - Parameter tableView: 要进行排序的UITableView
@@ -80,7 +82,7 @@ public extension RearrangeProcessor {
   
 }
 
-// MARK: - Action
+// MARK: - GestureRecognizer
 private extension RearrangeProcessor {
   
   @objc func longPress(_ sender: UILongPressGestureRecognizer) {
@@ -88,19 +90,27 @@ private extension RearrangeProcessor {
     switch sender.state {
     case .began:
       
+      startTimer()
+      
       sourceIndexPath = nil
       
+      /// 根据手势在TableView位置获取对应的索引
       guard let indexPath = tableView.indexPathForRow(at: sender.location(in: tableView)) else { return }
+      /// 根据索引获取要移动的Cell
       guard let sourceCell = tableView.cellForRow(at: indexPath) else { return }
+      /// 获取TableView的window，作为快照视图的载体
+      guard let window = tableView.window else { return }
       
       sourceIndexPath = indexPath
       
+      /// 生成要移动Cell的快照，并添加到载体上
       let snapshotView = generateSnapshotView(for: sourceCell)
-      snapshotView.frame = sourceCell.convert(sourceCell.bounds, to: tableView)
+      snapshotView.frame = sourceCell.convert(sourceCell.bounds, to: window)
       snapshotView.alpha = 0
       self.snapshotView = snapshotView
-      tableView.addSubview(snapshotView)
+      window.addSubview(snapshotView)
       
+      /// 生成要待移动Cell浮起的动画
       UIView.animate(withDuration: 0.1, animations: {
         
         sourceCell.alpha = 0
@@ -108,18 +118,22 @@ private extension RearrangeProcessor {
       })
       
       /// 若是移动Section，则折叠列表刷新界面
-      guard self.isMovingSection == true else { return }
-      self.delegate.rearrangeProcessor(self, willFoldList: true)
-      self.reload()
-      
+      guard isMovingSection == true else { return }
+      delegate.rearrangeProcessor(self, willFoldList: true)
+      reload()
       
     case .changed:
       
-      scrollIfNeed()
+      /// 获取快照视图的载体
+      guard let window = tableView.window else { return }
       
-      /// 获取要交换位置及视图
-      guard let source = self.sourceIndexPath else { return }
-      guard let destination = self.destinationIndexPath else { return }
+      snapshotView?.center.y = longPressGR.location(in: window).y
+      
+      guard isScrolling == false else { return }
+      
+      /// 获取要交换位置
+      guard let source = sourceIndexPath else { return }
+      guard let destination = destinationIndexPath else { return }
       /// 过滤相同的索引
       guard destination != source else { return }
       
@@ -134,11 +148,27 @@ private extension RearrangeProcessor {
       
     case .ended:
       
-      guard let source = sourceIndexPath else { return }
+      stopTimer()
       
+      /// 获取要交换位置
+      guard let source = sourceIndexPath else { return }
+      guard let destination = destinationIndexPath else { return }
+      /// 过滤相同的索引
+//      guard destination != source else { return }
+
+      if isMovingSection == true {
+
+        moveSection(from: source, to: destination)
+
+      } else {
+
+        moveRow(from: source, to: destination)
+      }
+      
+      /// 移动完成后，生成移动Cell下沉的动画
       UIView.animate(withDuration: 0.1, animations: {
         
-        self.tableView.cellForRow(at: source)?.alpha = 1
+        self.tableView.cellForRow(at: destination)?.alpha = 1
         self.snapshotView?.alpha = 0
         
       }, completion: { (_) in
@@ -149,12 +179,92 @@ private extension RearrangeProcessor {
       })
       
       /// 若是移动Section，则展开列表刷新界面
-      guard self.isMovingSection == true else { return }
-      self.delegate.rearrangeProcessor(self, willFoldList: false)
-      self.reload()
+      guard isMovingSection == true else { return }
+      delegate.rearrangeProcessor(self, willFoldList: false)
+      reload()
       
-    default: break
+    default:
+      stopTimer()
     }
+  }
+  
+}
+
+// MARK: - Timer
+private extension RearrangeProcessor {
+  
+  func startTimer() {
+    
+    if scrollTimer != nil { scrollTimer?.invalidate() }
+    let timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(loop(_:)), userInfo: nil, repeats: true)
+    scrollTimer = timer
+  }
+  
+  func stopTimer() {
+    
+    scrollTimer?.invalidate()
+    scrollTimer = nil
+  }
+  
+  @objc func loop(_ timer: Timer) {
+    
+    guard let window = tableView.window else { return }
+    guard let snapshotView = self.snapshotView else { return }
+    
+    /// 获取可移动范围
+    var movableRect: CGRect = .zero
+    movableRect.origin.y = tableView.contentOffset.y
+    movableRect.size = tableView.bounds.size
+    if movableRect.size.height > tableView.contentSize.height {
+      movableRect.size.height = tableView.contentSize.height
+    }
+    
+    /// 获取快照在window中的区域
+    let frame = snapshotView.frame
+    /// 获取TableView在window中区域
+    var bound = window.convert(tableView.frame, to: window)
+    if bound.height > tableView.contentSize.height {
+         bound.size.height = tableView.contentSize.height
+       }
+    
+    /// 在上边界触发滑动范围内
+    if frame.minY - 5 <= bound.minY {
+      
+      /// 保证快照距离上边界保留5个点的空隙
+      snapshotView.frame.origin.y = bound.minY + 5
+      
+      /// 向下滑动
+      var offsetY = tableView.contentOffset.y
+      offsetY -= 3
+      if offsetY < 0 {
+        offsetY = 0
+      }
+      tableView.contentOffset.y = offsetY
+      
+      isScrolling = true
+      
+      return
+    }
+    
+    /// 在下边界触发滑动范围内
+    if frame.maxY + 5 >= bound.maxY {
+      /// 保证快照距离下边界保留5个点的空隙
+      snapshotView.frame.origin.y = bound.maxY - 5 - frame.height
+      
+      /// 向上滑动
+      var offsetY = tableView.contentOffset.y
+      offsetY += 3
+      if offsetY > (tableView.contentSize.height - tableView.bounds.height) {
+        offsetY = tableView.contentSize.height - tableView.bounds.height
+      }
+      tableView.contentOffset.y = offsetY
+      
+      isScrolling = true
+      
+      return
+    }
+    
+    isScrolling = false
   }
   
 }
@@ -197,43 +307,7 @@ private extension RearrangeProcessor {
     return imageView
   }
   
-  func scrollIfNeed() {
-    
-    let visibleCells = tableView.visibleCells
-    guard let snapshotCell = snapshotView else { return }
-    guard let topCellFrame = visibleCells.first?.frame else { return }
-    guard let bottomCellFrame = visibleCells.last?.frame else { return }
-    
-    if topCellFrame.maxY > snapshotCell.frame.minY {
-      
-      tableView.contentOffset.y -= 5
-      snapshotView?.center.y = longPressGR.location(in: tableView).y
-      if tableView.contentOffset.y < 0 {
-        tableView.contentOffset.y = 0
-        return
-      }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
-        self.scrollIfNeed()
-      })
-      
-    } else if bottomCellFrame.minY < snapshotCell.frame.maxY {
-      
-      tableView.contentOffset.y += 5
-      snapshotView?.center.y = longPressGR.location(in: tableView).y
-      if tableView.contentOffset.y > (tableView.contentSize.height - tableView.bounds.height) {
-        tableView.contentOffset.y = tableView.contentSize.height - tableView.bounds.height
-        return
-      }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: {
-        self.scrollIfNeed()
-      })
-      
-    } else {
-      
-      snapshotView?.center.y = longPressGR.location(in: tableView).y
-    }
-    
-  }
+  
   
 }
 
