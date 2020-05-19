@@ -103,6 +103,10 @@ private extension Rearranger {
       
       sourceIndexPath = indexPath
       
+      if snapshotView != nil {
+        snapshotView?.removeFromSuperview()
+        snapshotView = nil
+      }
       /// 生成要移动Cell的快照，并添加到载体上
       let snapshotView = generateSnapshotView(for: sourceCell)
       snapshotView.frame = sourceCell.convert(sourceCell.bounds, to: window)
@@ -146,13 +150,28 @@ private extension Rearranger {
         moveRow(from: source, to: destination)
       }
       
-    case .ended:
+    default:
       
       stopTimer()
       
       /// 获取要交换位置
       guard let source = sourceIndexPath else { return }
-      guard let destination = destinationIndexPath else { return }
+      guard let destination = destinationIndexPath else {
+        
+        defer {
+          self.tableView.cellForRow(at: source)?.alpha = 1
+          self.snapshotView?.removeFromSuperview()
+          self.snapshotView = nil
+          self.sourceIndexPath = nil
+        }
+        
+        /// 若是移动Section，则展开列表刷新界面
+        guard isMovingSection == true else { return }
+        delegate.rearrangeProcessor(self, willFoldList: false)
+        reload()
+        
+        return
+      }
       /// 过滤相同的索引
 //      guard destination != source else { return }
 
@@ -182,10 +201,8 @@ private extension Rearranger {
       guard isMovingSection == true else { return }
       delegate.rearrangeProcessor(self, willFoldList: false)
       reload()
-      
-    default:
-      stopTimer()
     }
+    
   }
   
 }
@@ -211,27 +228,31 @@ private extension Rearranger {
     guard let window = tableView.window else { return }
     guard let snapshotView = self.snapshotView else { return }
     
-    /// 获取可移动范围
-    var movableRect: CGRect = .zero
-    movableRect.origin.y = tableView.contentOffset.y
-    movableRect.size = tableView.bounds.size
-    if movableRect.size.height > tableView.contentSize.height {
-      movableRect.size.height = tableView.contentSize.height
-    }
-    
     /// 获取快照在window中的区域
     let frame = snapshotView.frame
     /// 获取TableView在window中区域
-    var bound = window.convert(tableView.frame, to: window)
-    if bound.height > tableView.contentSize.height {
-         bound.size.height = tableView.contentSize.height
-       }
+    let bound = window.convert(tableView.frame, to: window)
+    
+    if frame.minY - 5 <= bound.minY {
+      /// 保证快照距离上边界保留5个点的空隙
+      snapshotView.frame.origin.y = bound.minY + 5
+    }
+    
+    if frame.maxY + 5 >= bound.maxY {
+      /// 保证快照距离下边界保留5个点的空隙
+      snapshotView.frame.origin.y = bound.maxY - 5 - frame.height
+    }
+    
+    
+    /// 在内容太少的情况下，不会触发滚动
+    if tableView.contentSize.height < tableView.bounds.height {
+      
+      isScrolling = false
+      return
+    }
     
     /// 在上边界触发滑动范围内
     if frame.minY - 5 <= bound.minY {
-      
-      /// 保证快照距离上边界保留5个点的空隙
-      snapshotView.frame.origin.y = bound.minY + 5
       
       /// 向下滑动
       var offsetY = tableView.contentOffset.y
@@ -248,8 +269,6 @@ private extension Rearranger {
     
     /// 在下边界触发滑动范围内
     if frame.maxY + 5 >= bound.maxY {
-      /// 保证快照距离下边界保留5个点的空隙
-      snapshotView.frame.origin.y = bound.maxY - 5 - frame.height
       
       /// 向上滑动
       var offsetY = tableView.contentOffset.y
