@@ -12,26 +12,27 @@ public class Rearranger {
   
   /// 是否可以进行重新排列，默认为false
   public var isEnable: Bool = false { didSet { isEnable ? enable() : disable() } }
+  /// TODO：表示是否强制移动第一个Row时，移动Section，当row所在的section只有一个Row时，也会触发移动Section
+  private var isForceMoveSectionWhenMoveFirstRow: Bool = false
   
-  /// 表示移动第一个Row时，移动Section,
-  /// 若设置为true，则代理回调中关于移动行时的索引Row都会+1，
-  /// 默认为true
-  public var isMoveSectionEnable: Bool = true
   
   /// 接收排序事件的代理
-  private weak var delegate: RearrangerDelegate!
+  private weak var delegate: RearrangerDelegate?
   /// 要进行排序的列表视图
   private let tableView: UITableView
   /// 用于触发排序的手势
   private let longPressGR = UILongPressGestureRecognizer()
   
-  /// 跟随手势移动的缩略图
-  private var snapshotView: UIView?
   
+  /// 跟随手势移动的快照
+  private var snapshotView: UIView?
   /// 记录移动过程中起始的索引
   private var sourceIndexPath: IndexPath?
   
+  
+  /// 表示是否正在滚动
   private var isScrolling: Bool = false
+  /// 用于持续滚动
   private var scrollTimer: Timer?
   
   /// 默认的构造方法
@@ -57,9 +58,9 @@ private extension Rearranger {
   @objc func longPress(_ sender: UILongPressGestureRecognizer) {
     
     switch sender.state {
-    
+      
     case .began: startMove()
-    
+      
     case .changed: move()
       
     default: endMove()
@@ -73,37 +74,16 @@ private extension Rearranger {
     
     sourceIndexPath = nil
     
-    /// 根据手势在TableView位置获取对应的索引
-    guard let indexPath = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) else { return }
-    /// 根据索引获取要移动的Cell
-    guard let sourceCell = tableView.cellForRow(at: indexPath) else { return }
-    /// 获取TableView的window，作为快照视图的载体
-    guard let window = tableView.window else { return }
+    /// 配置快照
+    setupSnapshot()
     
-    sourceIndexPath = indexPath
-    
-    if snapshotView != nil {
-      snapshotView?.removeFromSuperview()
-      snapshotView = nil
-    }
-    /// 生成要移动Cell的快照，并添加到载体上
-    let snapshotView = generateSnapshotView(for: sourceCell)
-    snapshotView.frame = sourceCell.convert(sourceCell.bounds, to: window)
-    snapshotView.alpha = 0
-    self.snapshotView = snapshotView
-    window.addSubview(snapshotView)
-    
-    /// 生成要待移动Cell浮起的动画
+    /// 待移动视图浮起的动画
     UIView.animate(withDuration: 0.1, animations: {
       
-      sourceCell.alpha = 0
-      snapshotView.alpha = 1
+      self.sourceView?.alpha = 0
+      self.snapshotView?.alpha = 1
     })
     
-    /// 若是移动Section，则折叠列表刷新界面
-    guard isMovingSection == true else { return }
-    delegate.rearranger(self, willFoldList: true)
-    reload()
   }
   
   func move() {
@@ -122,12 +102,14 @@ private extension Rearranger {
     
     if isMovingSection == true {
       
-      moveSection(from: source, to: destination)
+       moveSection(from: source, to: destination)
       
     } else {
       
       moveRow(from: source, to: destination)
     }
+    
+    sourceView?.alpha = 0
   }
   
   func endMove() {
@@ -138,37 +120,26 @@ private extension Rearranger {
     guard let source = sourceIndexPath else { return }
     guard let destination = destinationIndexPath else {
       
-      defer {
-        self.tableView.cellForRow(at: source)?.alpha = 1
-        self.snapshotView?.removeFromSuperview()
-        self.snapshotView = nil
-        self.sourceIndexPath = nil
-      }
-      
-      /// 若是移动Section，则展开列表刷新界面
-      guard isMovingSection == true else { return }
-      delegate.rearranger(self, willFoldList: false)
-      reload()
-      
+      self.sourceView?.alpha = 1
+      self.snapshotView?.removeFromSuperview()
+      self.snapshotView = nil
+      self.sourceIndexPath = nil
       return
     }
     
-    /// 过滤相同的索引
-    // guard destination != source else { return }
-
     if isMovingSection == true {
-
+      
       moveSection(from: source, to: destination)
-
+      
     } else {
-
+      
       moveRow(from: source, to: destination)
     }
     
     /// 移动完成后，生成移动Cell下沉的动画
     UIView.animate(withDuration: 0.1, animations: {
       
-      self.tableView.cellForRow(at: destination)?.alpha = 1
+      self.sourceView?.alpha = 1
       self.snapshotView?.alpha = 0
       
     }, completion: { (_) in
@@ -177,11 +148,6 @@ private extension Rearranger {
       self.snapshotView = nil
       self.sourceIndexPath = nil
     })
-    
-    /// 若是移动Section，则展开列表刷新界面
-    guard isMovingSection == true else { return }
-    delegate.rearranger(self, willFoldList: false)
-    reload()
   }
   
 }
@@ -192,7 +158,11 @@ private extension Rearranger {
   func startTimer() {
     
     if scrollTimer != nil { scrollTimer?.invalidate() }
-    let timer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: #selector(scroll), userInfo: nil, repeats: true)
+    let timer = Timer.scheduledTimer(timeInterval: 0.01,
+                                     target: self,
+                                     selector: #selector(scroll),
+                                     userInfo: nil,
+                                     repeats: true)
     scrollTimer = timer
   }
   
@@ -258,6 +228,67 @@ private extension Rearranger {
   
 }
 
+// MARK: - Snapshot
+private extension Rearranger {
+  
+  /// 配置快照
+  func setupSnapshot() {
+    
+    /// 清除可能未移除的视图
+    snapshotView?.removeFromSuperview()
+    snapshotView = nil
+    
+    /// 根据手势在TableView位置获取对应的索引
+    guard let indexPath = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) else { return }
+    
+    /// 询问代理是否可以移动该行
+    guard delegate?.rearranger(self, shouldMoveSectionAt: indexPath.section) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveRowAt: indexPath) == true else { return }
+    
+    /// 根据索引获取要移动的Cell
+    guard let sourceCell = tableView.cellForRow(at: indexPath) else { return }
+    /// 获取TableView的window，作为快照视图的载体
+    guard let window = tableView.window else { return }
+    
+    /// 保存索引
+    sourceIndexPath = indexPath
+    
+    
+    /// 生成要移动Cell的快照，并添加到载体上
+    let snapshotView = generateSnapshotView(for: sourceCell)
+    snapshotView.frame = sourceCell.convert(sourceCell.bounds, to: window)
+    snapshotView.alpha = 0
+    self.snapshotView = snapshotView
+    window.addSubview(snapshotView)
+  }
+  
+  /// 更新快照位置
+  func updateSnapshotViewPosition() {
+    
+    guard let window = tableView.window else { return }
+    guard let snapshotView = self.snapshotView else { return }
+    
+    /// 获取快照在window中的区域
+    var frame = snapshotView.frame
+    frame.origin.y = longPressGR.location(in: window).y - frame.height / 2
+    /// 获取TableView在window中区域
+    let bound = window.convert(tableView.frame, to: window)
+    
+    if frame.minY - 5 <= bound.minY {
+      /// 保证快照距离上边界保留5个点的空隙
+      frame.origin.y = bound.minY + 5
+    }
+    
+    if frame.maxY + 5 >= bound.maxY {
+      /// 保证快照距离下边界保留5个点的空隙
+      frame.origin.y = bound.maxY - 5 - frame.height
+    }
+    
+    snapshotView.frame = frame
+  }
+  
+}
+
 // MARK: - Utility
 private extension Rearranger {
   
@@ -269,11 +300,6 @@ private extension Rearranger {
   func disable() {
     
     tableView.removeGestureRecognizer(longPressGR)
-  }
-  
-  func reload() {
-    
-    tableView.reloadSections(IndexSet(integersIn: 0..<tableView.numberOfSections), with: .automatic)
   }
   
   /// 生成快照
@@ -297,98 +323,83 @@ private extension Rearranger {
     return imageView
   }
   
-  /// 更新快照位置
-  func updateSnapshotViewPosition() {
-    
-    guard let window = tableView.window else { return }
-    guard let snapshotView = self.snapshotView else { return }
-    
-    /// 获取快照在window中的区域
-    var frame = snapshotView.frame
-    frame.origin.y = longPressGR.location(in: window).y - frame.height / 2
-    //snapshotView.center.y = longPressGR.location(in: window).y
-    /// 获取TableView在window中区域
-    let bound = window.convert(tableView.frame, to: window)
-    
-    if frame.minY - 5 <= bound.minY {
-      /// 保证快照距离上边界保留5个点的空隙
-      frame.origin.y = bound.minY + 5
-    }
-    
-    if frame.maxY + 5 >= bound.maxY {
-      /// 保证快照距离下边界保留5个点的空隙
-      frame.origin.y = bound.maxY - 5 - frame.height
-    }
-    
-    snapshotView.frame = frame
-  }
-  
 }
 
 // MARK: - Move
 private extension Rearranger {
   
+  /// 源视图，要移动的Row或者Section
+  var sourceView: UIView? {
+    
+    guard let indexPath = sourceIndexPath else { return nil }
+    return tableView.cellForRow(at: indexPath)
+  }
+  
   /// 表示当前是否正在移动Section
-  var isMovingSection: Bool { return isMoveSectionEnable && (sourceIndexPath?.row == 0) }
+  var isMovingSection: Bool {
+    ///
+    guard let index = sourceIndexPath?.section else { return false }
+    
+    /// 如果强制表示移动首行就移动Section，则只要移动首行，就是表示移动Section
+    if isForceMoveSectionWhenMoveFirstRow == true {
+      
+      return sourceIndexPath?.row == 0
+    }
+    
+    /// 如果不是强制的，则根据Section的Row个数是否为1表示是否移动Section
+    return tableView.numberOfRows(inSection: index) == 1
+  }
   
   var destinationIndexPath: IndexPath? {
-    
-    if sourceIndexPath == nil { return nil }
-    return isMovingSection ? sectionDestinationIndexPath : rowDestinationIndexPath
-  }
-  
-  /// 根据手势获取Section的索引
-  var sectionDestinationIndexPath: IndexPath? {
-    
-    return tableView.indexPathForRow(at: longPressGR.location(in: tableView))
-  }
-  
-  /// 根据手势获取Row的索引
-  var rowDestinationIndexPath: IndexPath? {
     
     guard let source = self.sourceIndexPath else { return nil }
     guard let snapshotView = self.snapshotView else { return nil }
     
-    /// 如果移动Row的模式
-    /// 先根据触控点获取目标索引
-    if var destinationIndex = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) {
+    /// 若果是移动Section
+    if isMovingSection {
       
-      /// 如果是可以移动Section的模式，源行不为0，目标行为0的时候，不执行任何移动
-      if isMoveSectionEnable == true && destinationIndex.row == 0 {
-        
-        destinationIndex.row += 1
-        return destinationIndex
-      }
+      return tableView.indexPathForRow(at: longPressGR.location(in: tableView))
+    }
+    
+    /// 如果不是移动Section
+    /// 先根据触控点获取目标索引
+    if let destinationIndex = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) {
       
       return destinationIndex
     }
     
     // 当使用触控点获取不到索引时(移动到Header或者Footer的时候)，使用区域获取索引
-    let indexPaths = tableView.indexPathsForRows(in: snapshotView.frame)
-    guard var firstIndexPath = indexPaths?.first else { return nil }
-    guard firstIndexPath < source else { return nil }
+    let frameOfSnapshotInTable: CGRect = snapshotView.superview?.convert(snapshotView.frame, to: tableView) ?? .zero
+    let indexPaths = tableView.indexPathsForRows(in: frameOfSnapshotInTable)
     
-    firstIndexPath.row += 1
-    return firstIndexPath
+    guard var firstIndexPath = indexPaths?.first else { return nil }
+    if firstIndexPath.section < source.section {
+      firstIndexPath.row += 1
+      return firstIndexPath
+    }
+    
+    guard let lastIndexPath = indexPaths?.last else { return nil }
+    return lastIndexPath
   }
   
   func moveSection(from source: IndexPath, to destination: IndexPath) {
     
-    delegate?.rearranger(self, moveSectionFrom: source, to: destination)
+    guard delegate?.rearranger(self, shouldMoveSectionAt: destination.section) == true else { return }
+    
+    delegate?.rearranger(self, moveSectionFrom: source.section, to: destination.section)
     tableView.moveSection(source.section, toSection: destination.section)
     
-    tableView.cellForRow(at: source)?.alpha = 1
-    tableView.cellForRow(at: destination)?.alpha = 0
     sourceIndexPath = destination
   }
   
   func moveRow(from source: IndexPath, to destination: IndexPath) {
     
-    delegate.rearranger(self, moveRowFrom: source, to: destination)
+    guard delegate?.rearranger(self, shouldMoveSectionAt: destination.section) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveRowAt: destination) == true else { return }
+    
+    delegate?.rearranger(self, moveRowFrom: source, to: destination)
     tableView.moveRow(at: source, to: destination)
     
-    tableView.cellForRow(at: source)?.alpha = 1
-    tableView.cellForRow(at: destination)?.alpha = 0
     sourceIndexPath = destination
   }
   
