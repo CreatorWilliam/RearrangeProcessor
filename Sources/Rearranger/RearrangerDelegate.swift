@@ -9,6 +9,12 @@ import Foundation
 
 public protocol RearrangerDelegate: class {
   
+  /// 移动Section开始和结束时进行回调
+  /// - Parameters:
+  ///   - rearranger: 排序处理器
+  ///   - isFold: 是否折叠
+  func rearranger(_ rearranger: Rearranger, willFoldList isFold: Bool)
+  
   /// 要移动Section时进行有回调
   /// - Parameter rearranger: 排序处理器
   /// - Parameter source: 要移动的Section的索引

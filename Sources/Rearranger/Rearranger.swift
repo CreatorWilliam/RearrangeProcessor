@@ -13,7 +13,7 @@ public class Rearranger {
   /// 是否可以进行重新排列，默认为false
   public var isEnable: Bool = false { didSet { isEnable ? enable() : disable() } }
   /// TODO：表示是否强制移动第一个Row时，移动Section，当row所在的section只有一个Row时，也会触发移动Section
-  private var isForceMoveSectionWhenMoveFirstRow: Bool = false
+  public var isForceMoveSectionWhenMoveFirstRow: Bool = false
   
   
   /// 接收排序事件的代理
@@ -84,6 +84,12 @@ private extension Rearranger {
       self.snapshotView?.alpha = 1
     })
     
+    if isMovingSection == true {
+      
+      delegate?.rearranger(self, willFoldList: true)
+      reload()
+    }
+    
   }
   
   func move() {
@@ -122,6 +128,13 @@ private extension Rearranger {
       
       self.sourceView?.alpha = 1
       self.snapshotView?.removeFromSuperview()
+      
+      if isMovingSection == true {
+        
+        delegate?.rearranger(self, willFoldList: false)
+        reload()
+      }
+      
       self.snapshotView = nil
       self.sourceIndexPath = nil
       return
@@ -148,6 +161,13 @@ private extension Rearranger {
       self.snapshotView = nil
       self.sourceIndexPath = nil
     })
+    
+    if isMovingSection == true {
+      
+      delegate?.rearranger(self, willFoldList: false)
+      reload()
+    }
+    
   }
   
 }
@@ -321,6 +341,12 @@ private extension Rearranger {
     imageView.layer.shadowOpacity = 0.4
     
     return imageView
+  }
+  
+  func reload() {
+    
+    let sections = tableView.numberOfSections
+    tableView.reloadSections(IndexSet(integersIn: 0..<sections), with: .automatic)
   }
   
 }
