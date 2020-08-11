@@ -77,6 +77,12 @@ private extension Rearranger {
     /// 配置快照
     setupSnapshot()
     
+    if isMovingSection == true {
+      
+      delegate?.rearranger(self, willFoldList: true)
+      reload()
+    }
+    
     /// 待移动视图浮起的动画
     UIView.animate(withDuration: 0.1, animations: {
       
@@ -84,14 +90,9 @@ private extension Rearranger {
       self.snapshotView?.alpha = 1
     })
     
-    if isMovingSection == true {
-      
-      delegate?.rearranger(self, willFoldList: true)
-      reload()
-    }
-    
   }
   
+  // 进行Section或Row的移动
   func move() {
     
     /// 更新快照位置
@@ -106,6 +107,7 @@ private extension Rearranger {
     /// 过滤相同的索引
     guard destination != source else { return }
     
+    // 如果是移动Section
     if isMovingSection == true {
       
        moveSection(from: source, to: destination)
@@ -345,8 +347,8 @@ private extension Rearranger {
   
   func reload() {
     
-    let sections = tableView.numberOfSections
-    tableView.reloadSections(IndexSet(integersIn: 0..<sections), with: .automatic)
+    let sections = IndexSet(integersIn: 0 ..< tableView.numberOfSections)
+    tableView.reloadSections(sections, with: .automatic)
   }
   
 }
@@ -389,7 +391,14 @@ private extension Rearranger {
     
     /// 如果不是移动Section
     /// 先根据触控点获取目标索引
-    if let destinationIndex = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) {
+    if var destinationIndex = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) {
+      
+      // 如果设定了首行强制移动Section,表示首行位置不能变，则顺移到下一行
+      if isForceMoveSectionWhenMoveFirstRow == true
+        && destinationIndex.row == 0 {
+        
+        destinationIndex.row += 1
+      }
       
       return destinationIndex
     }
@@ -399,12 +408,20 @@ private extension Rearranger {
     let indexPaths = tableView.indexPathsForRows(in: frameOfSnapshotInTable)
     
     guard var firstIndexPath = indexPaths?.first else { return nil }
+    // 上移的时候，插入上一个Section的末尾
     if firstIndexPath.section < source.section {
       firstIndexPath.row += 1
       return firstIndexPath
     }
     
-    guard let lastIndexPath = indexPaths?.last else { return nil }
+    // 下移的时候
+    guard var lastIndexPath = indexPaths?.last else { return nil }
+    // 如果设定了首行强制移动Section,表示首行位置不能变，则顺移到下一行
+    if isForceMoveSectionWhenMoveFirstRow == true
+      && lastIndexPath.row == 0 {
+      
+      lastIndexPath.row += 1
+    }
     return lastIndexPath
   }
   
