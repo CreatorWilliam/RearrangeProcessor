@@ -15,26 +15,28 @@ public protocol RearrangerDelegate: class {
   ///   - isFold: 是否折叠
   func rearranger(_ rearranger: Rearranger, willFoldList isFold: Bool)
   
-  /// 要移动Section时进行有回调
+  /// Section移动时会进行频繁回调
   /// - Parameter rearranger: 排序处理器
-  /// - Parameter source: 要移动的Section的索引
-  func rearranger(_ rearranger: Rearranger, shouldMoveSectionAt source: Int) -> Bool
+  /// - Parameter source: Section移动的源索引
+  /// - Parameter destination: Section移动的目的地索引
+  func rearranger(_ rearranger: Rearranger, shouldMoveSectionAt source: Int, to destination: Int?) -> Bool
   
-  /// 移动Section时才会回调，会频繁调用
+  /// Section移动完成时才会回调
   /// - Parameter rearranger: 排序处理器
-  /// - Parameter source: 移动中Section的起始索引
-  /// - Parameter destination: 移动中Section的目标索引
+  /// - Parameter source: Section移动的源索引
+  /// - Parameter destination: Section移动的目的地索引
   func rearranger(_ rearranger: Rearranger, moveSectionFrom source: Int, to destination: Int)
   
-  /// 要移动Row的时候进行回调
+  /// Row移动时会进行频繁回调
   /// - Parameter rearranger: 排序处理器
-  /// - Parameter source: 要移动行的索引
-  func rearranger(_ rearranger: Rearranger, shouldMoveRowAt source: IndexPath) -> Bool
+  /// - Parameter source: Row移动的源索引
+  /// - Parameter destination: Row移动的目的地索引
+  func rearranger(_ rearranger: Rearranger, shouldMoveRowAt source: IndexPath, to destination: IndexPath?) -> Bool
   
-  /// 移动Row的时候进行回调，会频繁的调用
+  /// Row移动完成时才会回调
   /// - Parameter rearranger: 排序处理器
-  /// - Parameter source: 移动中Row的起始索引
-  /// - Parameter destination: 移动中Row的目标索引
+  /// - Parameter source: Row移动的源索引
+  /// - Parameter destination: Row移动的目的地索引
   func rearranger(_ rearranger: Rearranger, moveRowFrom source: IndexPath, to destination: IndexPath)
   
 }
@@ -46,12 +48,12 @@ public extension RearrangerDelegate {
     // Nothing
   }
   
-  func rearranger(_ rearranger: Rearranger, shouldMoveSectionAt source: Int) -> Bool {
+  func rearranger(_ rearranger: Rearranger, shouldMoveSectionAt source: Int, to destination: Int?) -> Bool {
     
     return true
   }
   
-  func rearranger(_ rearranger: Rearranger, shouldMoveRowAt source: IndexPath) -> Bool {
+  func rearranger(_ rearranger: Rearranger, shouldMoveRowAt source: IndexPath, to destination: IndexPath?) -> Bool {
     
     return true
   }

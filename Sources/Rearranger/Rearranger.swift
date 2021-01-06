@@ -59,7 +59,7 @@ private extension Rearranger {
     
     switch sender.state {
       
-    case .began: startMove()
+    case .began: beginMove()
       
     case .changed: move()
       
@@ -68,7 +68,7 @@ private extension Rearranger {
     
   }
   
-  func startMove() {
+  func beginMove() {
     
     startTimer()
     
@@ -80,7 +80,6 @@ private extension Rearranger {
     if isMovingSection == true {
       
       delegate?.rearranger(self, willFoldList: true)
-      reload()
     }
     
     /// 待移动视图浮起的动画
@@ -134,7 +133,6 @@ private extension Rearranger {
       if isMovingSection == true {
         
         delegate?.rearranger(self, willFoldList: false)
-        reload()
       }
       
       self.snapshotView = nil
@@ -167,7 +165,6 @@ private extension Rearranger {
     if isMovingSection == true {
       
       delegate?.rearranger(self, willFoldList: false)
-      reload()
     }
     
   }
@@ -264,8 +261,8 @@ private extension Rearranger {
     guard let indexPath = tableView.indexPathForRow(at: longPressGR.location(in: tableView)) else { return }
     
     /// 询问代理是否可以移动该行
-    guard delegate?.rearranger(self, shouldMoveSectionAt: indexPath.section) == true else { return }
-    guard delegate?.rearranger(self, shouldMoveRowAt: indexPath) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveSectionAt: indexPath.section, to: nil) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveRowAt: indexPath, to: nil) == true else { return }
     
     /// 根据索引获取要移动的Cell
     guard let sourceCell = tableView.cellForRow(at: indexPath) else { return }
@@ -345,12 +342,6 @@ private extension Rearranger {
     return imageView
   }
   
-  func reload() {
-    
-    let sections = IndexSet(integersIn: 0 ..< tableView.numberOfSections)
-    tableView.reloadSections(sections, with: .automatic)
-  }
-  
 }
 
 // MARK: - Move
@@ -427,7 +418,7 @@ private extension Rearranger {
   
   func moveSection(from source: IndexPath, to destination: IndexPath) {
     
-    guard delegate?.rearranger(self, shouldMoveSectionAt: destination.section) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveSectionAt: source.section, to: destination.section) == true else { return }
     
     delegate?.rearranger(self, moveSectionFrom: source.section, to: destination.section)
     tableView.moveSection(source.section, toSection: destination.section)
@@ -437,8 +428,8 @@ private extension Rearranger {
   
   func moveRow(from source: IndexPath, to destination: IndexPath) {
     
-    guard delegate?.rearranger(self, shouldMoveSectionAt: destination.section) == true else { return }
-    guard delegate?.rearranger(self, shouldMoveRowAt: destination) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveSectionAt: source.section, to: destination.section) == true else { return }
+    guard delegate?.rearranger(self, shouldMoveRowAt: source, to: destination) == true else { return }
     
     delegate?.rearranger(self, moveRowFrom: source, to: destination)
     tableView.moveRow(at: source, to: destination)
